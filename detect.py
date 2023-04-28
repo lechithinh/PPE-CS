@@ -161,6 +161,8 @@ def detect(opt,save_img=False):
         #print(f"Results saved to {save_dir}{s}")
 
     print(f'Done. ({time.time() - t0:.3f}s)')
+    #return detected image, class 
+    return im0 
     
     
 def getParameters():
