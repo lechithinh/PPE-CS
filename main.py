@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import numpy as np
 import base64
+import torch
 
 app = FastAPI()
 
@@ -17,14 +18,19 @@ async def detect(image: UploadFile = File(...)):
     contents = await image.read()
     img = Image.open(io.BytesIO(contents))
     img_array = np.array(img)
-    result_img = Image.fromarray(img_array)
-
-    # create an in-memory file-like object
+   
+    print("yes")
+    model = torch.hub.load('yolov5', 'custom', path='weights\model1.pt', force_reload=True, source='local') 
+    results = model(img_array) 
+    result_img = results.ims
+    results.render()
+    
+    
     buffer = io.BytesIO()
+    result_img = Image.fromarray(result_img[0])
     result_img.save(buffer, format="PNG")
 
-    # set the buffer position to the beginning
+    # Set the buffer position to the beginning
     buffer.seek(0)
-
     # return the image as a streaming response
     return StreamingResponse(buffer, media_type="image/png")
