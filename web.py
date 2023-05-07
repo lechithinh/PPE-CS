@@ -4,7 +4,6 @@ import extra_streamlit_components as stx
 import numpy as np
 import cv2
 import torch
-from streamlit_pills import pills
 from helpers import convert_to_classID
 import altair as alt
 import pandas as pd
@@ -13,7 +12,7 @@ from st_aggrid import AgGrid
 
 with st.sidebar:
     selected = option_menu("Main Menu", ["Home", 'PPE Detector', 'Setting'], 
-        icons=['house', 'camera-fill', 'gear'], menu_icon="cast", default_index=1,
+        icons=['house', 'camera-fill','gear'], menu_icon="cast", default_index=1,
             styles={
         "container": {"padding": "0!important", "background-color": "#f1f2f6"},
     })
@@ -48,7 +47,7 @@ elif selected == "PPE Detector":
             'What are your favorite colors',
             ['Boot', 'Glove', 'Hardhat', 'Vest'],
             ['Boot', 'Glove', 'Hardhat', 'Vest'])
-        class_choice = convert_to_classID(selected_class)
+        class_choice = convert_to_classID(selected_class) #[0,1,2,3]
         col1, col2 = st.columns(2)
         
         #result from detector
@@ -65,7 +64,7 @@ elif selected == "PPE Detector":
                 with col2:
                     st.markdown("<h4 style='text-align: center; color: red;'>Detected</h4>", unsafe_allow_html=True)
                     model = torch.hub.load('yolov5', 'custom', path='weights\model1.pt', force_reload=True, source='local') 
-                    model.classes = class_choice
+                    model.classes = class_choice 
                     results = model(opencv_image)  # inference
                     results.render()
                     st.image(opencv_image, channels="BGR")
@@ -123,7 +122,7 @@ elif selected == "PPE Detector":
                 )
                 st.altair_chart(chart, use_container_width =True)
                 
-        
+
  
                 
                     
