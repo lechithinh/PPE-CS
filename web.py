@@ -32,7 +32,8 @@ elif selected == "PPE Detector":
     ], default=1, return_type=int)
     
     if tab_id == 1:
-        st.write("Hướng dẫn sử dụng")
+        st.write("Hi")
+
     elif tab_id == 2:
         uploaded_file = st.file_uploader('')
         #remove name file 
@@ -47,6 +48,7 @@ elif selected == "PPE Detector":
             'What are your favorite colors',
             ['Boot', 'Glove', 'Hardhat', 'Vest'],
             ['Boot', 'Glove', 'Hardhat', 'Vest'])
+            
         class_choice = convert_to_classID(selected_class) #[0,1,2,3]
         col1, col2 = st.columns(2)
         
@@ -63,7 +65,7 @@ elif selected == "PPE Detector":
                     st.image(opencv_image, channels="BGR")
                 with col2:
                     st.markdown("<h4 style='text-align: center; color: red;'>Detected</h4>", unsafe_allow_html=True)
-                    model = torch.hub.load('yolov5', 'custom', path='weights\model1.pt', force_reload=True, source='local') 
+                    model = torch.hub.load('yolov5', 'custom', path=r"weights\best.pt", force_reload=True, source='local') 
                     model.classes = class_choice 
                     results = model(opencv_image)  # inference
                     results.render()
@@ -101,7 +103,7 @@ elif selected == "PPE Detector":
                     st.image(url, channels="BGR")
                 with col2:
                     st.markdown("<h4 style='text-align: center; color: red;'>Detected</h4>", unsafe_allow_html=True)
-                    model = torch.hub.load('yolov5', 'custom', path='weights\model1.pt', force_reload=True, source='local') 
+                    model = torch.hub.load('yolov5', 'custom', path=r"weights\best.pt", force_reload=True, source='local') 
                     model.classes = class_choice
                     results = model(url)
                     result_img = results.ims    
