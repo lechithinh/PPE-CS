@@ -28,15 +28,20 @@ def draw_one_class(results, className, originFrame):
     return newframe
 
 def convert_to_classID(selected_class):
+    #['Person', 'Vest', 'Blue Helmet', 'Red Helmet', 'White Helmet', 'Yellow Helmet']
     class_choice = []
     for c in selected_class:
-        if c == 'Boot':
+        if c == 'Person':
             class_choice.append(0)
-        elif c == "Glove":
-             class_choice.append(1)
-        elif c == "Hardhat":
-             class_choice.append(2)
         elif c == "Vest":
+             class_choice.append(1)
+        elif c == "Blue":
+             class_choice.append(2)
+        elif c == "Red":
              class_choice.append(3)
+        elif c == "White":
+             class_choice.append(4)
+        elif c == "Yellow":
+             class_choice.append(5)
     return class_choice
     

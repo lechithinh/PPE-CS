@@ -1,7 +1,7 @@
 import torch
 
 
-model = torch.hub.load('yolov5', 'custom', path='weights\model1.pt', force_reload=True, source='local') 
+model = torch.hub.load('yolov5', 'custom', path='weights\model_s.pt', force_reload=True, source='local') 
 im = 'figures\ppe_0500.jpg'  # file, Path, PIL.Image, OpenCV, nparray, list
 results = model(im)
 results.show()# inference
