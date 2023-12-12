@@ -4,13 +4,17 @@ import extra_streamlit_components as stx
 import numpy as np
 import cv2
 import torch
-from helpers import convert_to_classID
+from helpers import convert_to_classID, plot_boxes, model_predict
 import altair as alt
 import pandas as pd
 from st_aggrid import AgGrid
 from PIL import Image
+from ultralytics import YOLO
+import random
+import requests
+from io import BytesIO
 
-BANNER = "asssets\PPE.png"
+BANNER = "assests\PPE1.png"
 
 
 
@@ -84,9 +88,10 @@ elif selected == "PPE Detector":
         #select certain class
         selected_class = st.multiselect(
             'What are your detected objects? (color for Helmet)',
-            ['Person', 'Vest', 'Blue', 'Red', 'White', 'Yellow'],
-            ['Person', 'Vest', 'Blue', 'Red', 'White', 'Yellow'])
+            ['person', 'vest', 'blue helmet', 'red helmet', 'white helmet', 'yellow helmet'],
+            ['person', 'vest', 'blue helmet', 'red helmet', 'white helmet', 'yellow helmet'])
         class_choice = convert_to_classID(selected_class) #[0,1,2,3]
+        class_choice_name = selected_class
         col1, col2 = st.columns(2)
         
         #result from detector
@@ -99,41 +104,56 @@ elif selected == "PPE Detector":
                 origin_img = opencv_image.copy()
                 m_img = opencv_image.copy()
                 l_img = opencv_image.copy()
+
+                labels = class_choice_name
+                print(class_choice_name)
+                label_colors = {label: (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                                    for label in labels}
+                
+                model_m = YOLO("best.pt", "v8") 
+                result_image, result = model_predict(m_img, model_m, label_colors, class_choice_name)
+
                 with col1:
                     st.markdown("<h4 style='text-align: center; color: red;'>Origin</h4>", unsafe_allow_html=True)
-                    st.image(opencv_image, channels="BGR")
-                    
-                    
-                    model_m = torch.hub.load('yolov5', 'custom', path='weights\model_m.pt', force_reload=True, source='local') 
-                    model_m.classes = class_choice 
-                    results_m = model_m(m_img)  # inference
-                    results_m.render()
-                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov5m</h4>", unsafe_allow_html=True)
-                    st.image(m_img, channels="BGR")
-
+                    st.image(opencv_image, channels="BGR", width=350)
                 with col2:
-                    
-                    model = torch.hub.load('yolov5', 'custom', path='weights\model_s.pt', force_reload=True, source='local') 
-                    model.classes = class_choice 
-                    results = model(opencv_image)  # inference
-                    results.render()
-                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov5s</h4>", unsafe_allow_html=True)
-                    st.image(opencv_image, channels="BGR")
-                    
-                    
-                    model_l = torch.hub.load('yolov5', 'custom', path='weights\model_l.pt', force_reload=True, source='local') 
-                    model_l.classes = class_choice 
-                    results_l = model_l(l_img)  # inference
-                    results_l.render()
-                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov5l</h4>", unsafe_allow_html=True)
-                    st.image(l_img, channels="BGR")
+                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov8</h4>", unsafe_allow_html=True)
+                    st.image(result_image, channels='BGR', width=350)
 
+                 
                 #Draw a chart
+                dct = {'xmin': [], 'ymin': [], 'xmax': [], 'ymax': [], 'confidence': [], 'class': [], 'name': []}
+                boxes = result.boxes.xyxy.tolist()
+                classes = result.boxes.cls.tolist()
+                names = result.names
+                confidences = result.boxes.conf.tolist()
+            
+                for box, cls, conf in zip(boxes, classes, confidences):
+                    x1, y1, x2, y2 = box
+                    confidence = conf
+                    detected_class = cls
+                    name = names[int(cls)]
+                    if name not in class_choice_name:
+                        dct['xmin'].append(x1)
+                        dct['ymin'].append(y1)
+                        dct['xmax'].append(x2)
+                        dct['ymax'].append(y2)
+                        dct['confidence'].append(conf)
+                        dct['class'].append(cls)
+                        dct['name'].append(name)
+    
+
+
+                
                 with st.expander("Yolov5 Small Analytics"):
-                    AgGrid(pd.DataFrame(results.pandas().xyxy[0]), fit_columns_on_grid_load = True, editable=True)
-                    data = pd.DataFrame(results.pandas().xyxy[0].value_counts('name')).reset_index().rename(columns={'name': 'ClassName', 'index': 'count'})
+                    AgGrid(pd.DataFrame(dct), fit_columns_on_grid_load = True, editable=True)
+
+                    data = pd.DataFrame(dct['name'], columns=['name'])
+
+                    value_counts = pd.DataFrame(data['name'].value_counts().reset_index().rename(columns={'index': 'ClassName', 'name': 'count'}))
+
                     chart = (
-                        alt.Chart(data)
+                        alt.Chart(value_counts)
                         .mark_bar()
                         .encode(
                             x='ClassName',
@@ -142,84 +162,80 @@ elif selected == "PPE Detector":
                         ).interactive()
                     )
                     st.altair_chart(chart, use_container_width =True)
-                with st.expander("Yolov5 Medium Analytics"):
-                    AgGrid(pd.DataFrame(results_m.pandas().xyxy[0]), fit_columns_on_grid_load = True, editable=True)
-                    data_m = pd.DataFrame(results_m.pandas().xyxy[0].value_counts('name')).reset_index().rename(columns={'name': 'ClassName', 'index': 'count'})
-                    chart = (
-                        alt.Chart(data_m)
-                        .mark_bar()
-                        .encode(
-                            x='ClassName',
-                            y='count',
-                            color='ClassName:N'
-                        ).interactive()
-                    )
-                    st.altair_chart(chart, use_container_width =True)
-                with st.expander("Yolov5 Large Analytics"):
-                    AgGrid(pd.DataFrame(results_l.pandas().xyxy[0]), fit_columns_on_grid_load = True, editable=True)
-                    data_l = pd.DataFrame(results_l.pandas().xyxy[0].value_counts('name')).reset_index().rename(columns={'name': 'ClassName', 'index': 'count'})
-                    chart = (
-                        alt.Chart(data_l)
-                        .mark_bar()
-                        .encode(
-                            x='ClassName',
-                            y='count',
-                            color='ClassName:N'
-                        ).interactive()
-                    )
-                    st.altair_chart(chart, use_container_width =True)
+            
     elif tab_id == 2:
         url = st.text_input('URL address', placeholder="Enter url address")
+        
         #select certain class
         selected_class = st.multiselect(
              'What are your detected objects? (color for Helmet)',
-            ['Person', 'Vest', 'Blue', 'Red', 'White', 'Yellow'],
-             ['Person', 'Vest', 'Blue', 'Red', 'White', 'Yellow'],)
+            ['person', 'vest', 'blue helmet', 'red helmet', 'white helmet', 'yellow helmet'],
+             ['person', 'vest', 'blue helmet', 'red helmet', 'white helmet', 'yellow helmet'],)
         class_choice = convert_to_classID(selected_class)
+        class_choice_name = selected_class
         col1, col2 = st.columns(2)
         
         #result from detector
         result = ''
 
         if url != "":
+                response = requests.get(url)
+                image_array = np.array(Image.open(BytesIO(response.content)))
+                img = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
                 with col1:
                     st.markdown("<h4 style='text-align: center; color: red;'>Origin</h4>", unsafe_allow_html=True)
-                    st.image(url, channels="BGR")
+                    st.image(img, channels="BGR", width=350)
                     
-                    model_m = torch.hub.load('yolov5', 'custom', path='weights\model_m.pt', force_reload=True, source='local') 
-                    model_m.classes = class_choice 
-                    results_m = model_m(url)  # inference
-                    result_img_m = results_m.ims    
-                    results_m.render()
-                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov5m</h4>", unsafe_allow_html=True)
-                    st.image(result_img_m, channels="RGB")
                     
 
                 with col2:
+                    labels = class_choice_name
+                    label_colors = {label: (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                                        for label in labels}
                     
-                    st.markdown("<h4 style='text-align: center; color: red;'>Detected</h4>", unsafe_allow_html=True)
-                    model = torch.hub.load('yolov5', 'custom', path='weights\model_s.pt', force_reload=True, source='local') 
-                    model.classes = class_choice
-                    results = model(url)
-                    result_img = results.ims    
-                    results.render()
-                    st.image(result_img, channels="RGB")
+                    model_m = YOLO("best.pt", "v8") 
+                    model_m.classes = class_choice 
+                    result_image, result = model_predict(img, model_m, label_colors, class_choice_name)
                     
-                    model_l = torch.hub.load('yolov5', 'custom', path='weights\model_l.pt', force_reload=True, source='local') 
-                    model_l.classes = class_choice 
-                    results_l = model_l(url)  # inference
-                    result_img_l = results_l.ims    
-                    results_l.render()
-                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov5l</h4>", unsafe_allow_html=True)
-                    st.image(result_img_l, channels="RGB")
+                    # model_m = YOLO("best.pt")
+                    # # results_m = model_m(url)  # inference
+                    # result_img_m = results_m.ims    
+                    # results_m.render()
+                    st.markdown("<h4 style='text-align: center; color: red;'>Yolov5m</h4>", unsafe_allow_html=True)
+                    st.image(result_image, channels="BGR", width=350)
                    
                 #Draw a chart
                                 #Draw a chart
+                
+                dct = {'xmin': [], 'ymin': [], 'xmax': [], 'ymax': [], 'confidence': [], 'class': [], 'name': []}
+                boxes = result.boxes.xyxy.tolist()
+                classes = result.boxes.cls.tolist()
+                names = result.names
+                confidences = result.boxes.conf.tolist()
+            
+                for box, cls, conf in zip(boxes, classes, confidences):
+                    x1, y1, x2, y2 = box
+                    confidence = conf
+                    detected_class = cls
+                    name = names[int(cls)]
+                    if name  in class_choice_name:
+                        dct['xmin'].append(x1)
+                        dct['ymin'].append(y1)
+                        dct['xmax'].append(x2)
+                        dct['ymax'].append(y2)
+                        dct['confidence'].append(conf)
+                        dct['class'].append(cls)
+                        dct['name'].append(name)
+    
                 with st.expander("Yolov5 Small Analytics"):
-                    AgGrid(pd.DataFrame(results.pandas().xyxy[0]), fit_columns_on_grid_load = True, editable=True)
-                    data = pd.DataFrame(results.pandas().xyxy[0].value_counts('name')).reset_index().rename(columns={'name': 'ClassName', 'index': 'count'})
+                    AgGrid(pd.DataFrame(dct), fit_columns_on_grid_load = True, editable=True)
+
+                    data = pd.DataFrame(dct['name'], columns=['name'])
+
+                    value_counts = pd.DataFrame(data['name'].value_counts().reset_index().rename(columns={'index': 'ClassName', 'name': 'count'}))
+
                     chart = (
-                        alt.Chart(data)
+                        alt.Chart(value_counts)
                         .mark_bar()
                         .encode(
                             x='ClassName',
@@ -228,42 +244,13 @@ elif selected == "PPE Detector":
                         ).interactive()
                     )
                     st.altair_chart(chart, use_container_width =True)
-                with st.expander("Yolov5 Medium Analytics"):
-                    AgGrid(pd.DataFrame(results_m.pandas().xyxy[0]), fit_columns_on_grid_load = True, editable=True)
-                    data_m = pd.DataFrame(results_m.pandas().xyxy[0].value_counts('name')).reset_index().rename(columns={'name': 'ClassName', 'index': 'count'})
-                    chart = (
-                        alt.Chart(data_m)
-                        .mark_bar()
-                        .encode(
-                            x='ClassName',
-                            y='count',
-                            color='ClassName:N'
-                        ).interactive()
-                    )
-                    st.altair_chart(chart, use_container_width =True)
-                with st.expander("Yolov5 Large Analytics"):
-                    AgGrid(pd.DataFrame(results_l.pandas().xyxy[0]), fit_columns_on_grid_load = True, editable=True)
-                    data_l = pd.DataFrame(results_l.pandas().xyxy[0].value_counts('name')).reset_index().rename(columns={'name': 'ClassName', 'index': 'count'})
-                    chart = (
-                        alt.Chart(data_l)
-                        .mark_bar()
-                        .encode(
-                            x='ClassName',
-                            y='count',
-                            color='ClassName:N'
-                        ).interactive()
-                    )
-                    st.altair_chart(chart, use_container_width =True)
+               
                 
 else:
     st.markdown(''' 
         # CONTACT US \n   
        
-        - **Facebook**: Connect with us on [Facebook](https://www.facebook.com/L.ChiThinh/) to stay updated with the latest news and developments.
-
-        - **GitHub**: Explore our projects and contribute to our open-source initiatives on [GitHub](https://github.com/lechithinh). Join our community of developers and be a part of the innovation.
-
-        - **LinkedIn**: Follow us on [LinkedIn](https://www.linkedin.com/in/lechithinh/) to network with industry professionals, discover career opportunities, and engage in discussions related to construction safety and PPE detection.
+        - Group 2 - Computional Thiking - CS107(2023-2024)
 
         We look forward to hearing from you and working together to create safer construction environments.
     ''')
